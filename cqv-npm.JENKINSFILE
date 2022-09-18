@@ -64,16 +64,3 @@ pipeline {
     }
 }
 
-
-
-        // $.pullrequest.source.commit.hash commit hash
-        //docker login --username ${NX_USERNAME} --password ${NX_PASSWORD} docker-push.prospecta.com
-        // docker build --tag docker-push.prospecta.com/prospecta/ngx-mdo:$GIT_BRANCH_LOCAL .
-        // docker push docker-push.prospecta.com/prospecta/ngx-mdo:$GIT_BRANCH_LOCAL
-        // stage("Quality Gate") {
-        //   steps {
-        //     timeout(time: 1, unit: 'MINUTES') {
-        //         waitForQualityGate abortPipeline: true
-        //     }
-        //   }
-        // }
