@@ -54,21 +54,21 @@ pipeline {
                 }
             }
         }
-        post {
-            success {
-                bitbucketStatusNotify(
-                    buildState: 'SUCCESSFUL',
-                    repoSlug: "$REPOSITORY_NAME",
-                    commitId: "$SOURCE_COMMIT_HASH"   
-                )
-            }
-            failure {
-                bitbucketStatusNotify(
-                    buildState: 'FAILED',
-                    repoSlug: "$REPOSITORY_NAME",
-                    commitId: "$SOURCE_COMMIT_HASH"   
-                )
-            }
+    }
+    post {
+        success {
+            bitbucketStatusNotify(
+                buildState: 'SUCCESSFUL',
+                repoSlug: "$REPOSITORY_NAME",
+                commitId: "$SOURCE_COMMIT_HASH"   
+            )
+        }
+        failure {
+            bitbucketStatusNotify(
+                buildState: 'FAILED',
+                repoSlug: "$REPOSITORY_NAME",
+                commitId: "$SOURCE_COMMIT_HASH"   
+            )
         }
     }
 }
