@@ -44,7 +44,7 @@ pipeline {
                   {
                     sh 'mvn -gs nexus-maven-settings.xml clean verify test $SONAR_MAVEN_GOAL -Dsonar.branch.name=$GIT_BRANCH_LOCAL'
                   }
-                  publishCoverage adapters: [jacocoAdapter(path: 'target/site/jacoco/jacoco.xml', thresholds: [[failUnhealthy: true, thresholdTarget: 'Conditional', unstableThreshold: 80.0], [failUnhealthy: true, thresholdTarget: 'Aggregated Report', unstableThreshold: 90.0], [failUnhealthy: true, thresholdTarget: 'Line', unstableThreshold: 90.0]])], failUnhealthy: true, failUnstable: false, sourceFileResolver: sourceFiles('NEVER_STORE')
+                  publishCoverage adapters: [jacocoAdapter(path: 'target/site/jacoco/jacoco.xml', thresholds: [[failUnhealthy: true, thresholdTarget: 'Conditional', unstableThreshold: 80.0], [failUnhealthy: true, thresholdTarget: 'Aggregated Report', unstableThreshold: 90.0], [failUnhealthy: true, thresholdTarget: 'Line', unstableThreshold: 90.0]])], failUnhealthy: false, failUnstable: true, sourceFileResolver: sourceFiles('NEVER_STORE')
                 }}}
           }
     }
