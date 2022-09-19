@@ -31,7 +31,7 @@ pipeline {
                     repoSlug: "$REPOSITORY_NAME",
                     commitId: "$SOURCE_COMMIT_HASH"      
                   )
-                ws("CQV/$REPOSITORY_NAME") { withSonarQubeEnv(installationName: 'SonarCloud', credentialsId: 'SONARCLOUDTOKEN') {
+                dir("$REPOSITORY_NAME") { withSonarQubeEnv(installationName: 'SonarCloud', credentialsId: 'SONARCLOUDTOKEN') {
                     checkout(
                         [
                             $class: 'GitSCM', 
