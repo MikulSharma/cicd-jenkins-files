@@ -1,0 +1,83 @@
+pipeline {
+    agent any
+    tools {
+        maven 'maven-3.8.6'
+    }
+    triggers {
+        GenericTrigger(
+            genericVariables: [
+                [defaultValue: '', key: 'DESTINATION_BRANCH', regexpFilter: '', value: '$.pullrequest.destination.branch.name'],
+                [defaultValue: '', key: 'DESTINATION_COMMIT_HASH', regexpFilter: '', value: '$.pullrequest.destination.commit.hash'],
+                [defaultValue: '', key: 'REPOSITORY_FULL_NAME', regexpFilter: '', value: '$.pullrequest.destination.repository.full_name'],
+                [defaultValue: '', key: 'REPOSITORY_NAME', regexpFilter: '', value: '$.repository.name']
+            ],
+            tokenCredentialId: 'PR_MVN_M',
+            regexpFilterText: '',
+            regexpFilterExpression: '' //'refs/heads/' + 'master'
+        )
+    }
+    stages {
+        stage('Notify Bitbucket') {
+            steps {
+                sh "echo repository $REPOSITORY_FULL_NAME"
+                sh "echo branch $DESTINATION_BRANCH"
+                sh "echo branch $DESTINATION_COMMIT_HASH"
+                bitbucketStatusNotify(buildState: 'INPROGRESS', repoSlug: "$REPOSITORY_NAME", commitId: "$DESTINATION_COMMIT_HASH")
+            }
+        }
+        stage('Build') {
+            steps {
+                dir("$REPOSITORY_NAME") {
+                    checkout([
+                        $class: 'GitSCM',
+                        branches: [[name: '$DESTINATION_BRANCH' ]],
+                        extensions: [],
+                        userRemoteConfigs: [[credentialsId: 'Bitbucket', url: 'git@bitbucket.org:' + '$REPOSITORY_FULL_NAME' + '.git']]
+                    ])
+                    withSonarQubeEnv(installationName: 'SonarCloud', credentialsId: 'SONARCLOUDTOKEN') {
+                        configFileProvider([configFile(fileId: 'nexus-maven-settings.xml', targetLocation: 'nexus-maven-settings.xml', variable: 'nexus-maven-settings.xml')]) {
+                            sh 'mvn -gs nexus-maven-settings.xml clean verify test $SONAR_MAVEN_GOAL -Dsonar.branch.name=$GIT_BRANCH_LOCAL'
+                        }
+                    }
+                    publishCoverage adapters: [
+                        jacocoAdapter(
+                            path: 'target/site/jacoco/jacoco.xml',
+                            thresholds: [
+                                [failUnhealthy: false, thresholdTarget: 'Conditional', unstableThreshold: 80.0],
+                                [failUnhealthy: false, thresholdTarget: 'Aggregated Report', unstableThreshold: 90.0],
+                                [failUnhealthy: false, thresholdTarget: 'Line', unstableThreshold: 90.0]
+                            ]
+                        )
+                    ], failUnhealthy: false, failUnstable: true, sourceFileResolver: sourceFiles('NEVER_STORE')
+                }
+            }
+        }
+        stage('Push') {
+            steps {
+                dir("$REPOSITORY_NAME") {
+                    withCredentials([[$class: 'UsernamePasswordMultiBinding', credentialsId:'NEXUS_DEFAULT_CRED', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD']]) {
+                        sh 'docker login --username $USERNAME --password $PASSWORD docker-push.prospecta.com'
+                        sh 'docker build --tag docker-push.prospecta.com/prospecta/$REPOSITORY_NAME:$DESTINATION_BRANCH .'
+                        sh 'docker push docker-push.prospecta.com/prospecta/$REPOSITORY_NAME:$DESTINATION_BRANCH'
+                    }
+                }
+            }
+        }
+    }
+    post {
+        success {
+            bitbucketStatusNotify(
+                buildState: 'SUCCESSFUL',
+                repoSlug: "$REPOSITORY_NAME",
+                commitId: "$DESTINATION_COMMIT_HASH"
+            )
+        }
+        failure {
+            bitbucketStatusNotify(
+                buildState: 'FAILED',
+                repoSlug: "$REPOSITORY_NAME",
+                commitId: "$DESTINATION_COMMIT_HASH"
+            )
+        }
+    }
+}

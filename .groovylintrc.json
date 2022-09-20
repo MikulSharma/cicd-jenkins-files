@@ -1,7 +1,13 @@
 {
     "extends": "recommended",
     "rules": {
+        "CompileStatic": {
+            "enabled": false
+        },
         "LineLength": {
+            "enabled": false
+        },
+        "NestedBlockDepth": {
             "enabled": false
         }
     }
