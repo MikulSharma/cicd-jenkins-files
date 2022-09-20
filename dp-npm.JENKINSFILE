@@ -1,7 +1,7 @@
 pipeline {
     agent any
     tools {
-      nodejs 'NodeJs LTS'
+        nodejs 'NodeJs LTS'
     }
     triggers {
         GenericTrigger(
@@ -27,30 +27,34 @@ pipeline {
         }
         stage('Build') {
             steps {
-                dir("$REPOSITORY_NAME") { 
-                    withSonarQubeEnv(
-                        installationName: 'SonarCloud', 
-                        credentialsId: 'SONARCLOUDTOKEN') {
-                        checkout([
-                            $class: 'GitSCM', 
-                            branches: [[name: '$DESTINATION_BRANCH' ]], 
-                            extensions: [], 
-                            userRemoteConfigs: [[credentialsId: 'Bitbucket', url: 'git@bitbucket.org:'+ '$REPOSITORY_FULL_NAME' +'.git']]
-                        ])
-                        sh 'npm ci'
-                        sh 'npm run lint'
-                        sh 'npm run build'
-                        publishCoverage adapters: [
-                            jacocoAdapter(
-                                path: 'target/site/jacoco/jacoco.xml', 
-                                thresholds: [
-                                    [failUnhealthy: true, thresholdTarget: 'Conditional', unstableThreshold: 80.0], 
-                                    [failUnhealthy: true, thresholdTarget: 'Aggregated Report', unstableThreshold: 90.0], 
-                                    [failUnhealthy: true, thresholdTarget: 'Line', unstableThreshold: 90.0]
-                                ]
-                            )
-                        ], failUnhealthy: true, failUnstable: false, sourceFileResolver: sourceFiles('NEVER_STORE')
-                        sh 'docker login --username ${NX_USERNAME} --password ${NX_PASSWORD} docker-push.prospecta.com'
+                dir("$REPOSITORY_NAME") {
+                    checkout([
+                        $class: 'GitSCM',
+                        branches: [[name: '$DESTINATION_BRANCH' ]],
+                        extensions: [],
+                        userRemoteConfigs: [[credentialsId: 'Bitbucket', url: 'git@bitbucket.org:' + '$REPOSITORY_FULL_NAME' + '.git']]
+                    ])
+                    sh 'npm ci'
+                    sh 'npm run lint'
+                    sh 'npm run build'
+                    publishCoverage adapters: [
+                        jacocoAdapter(
+                            path: 'target/site/jacoco/jacoco.xml',
+                            thresholds: [
+                                [failUnhealthy: false, thresholdTarget: 'Conditional', unstableThreshold: 80.0],
+                                [failUnhealthy: false, thresholdTarget: 'Aggregated Report', unstableThreshold: 90.0],
+                                [failUnhealthy: false, thresholdTarget: 'Line', unstableThreshold: 90.0]
+                            ]
+                        )
+                    ], failUnhealthy: false, failUnstable: true, sourceFileResolver: sourceFiles('NEVER_STORE')
+                }
+            }
+        }
+        stage('Push') {
+            steps {
+                dir("$REPOSITORY_NAME") {
+                    withCredentials([[$class: 'UsernamePasswordMultiBinding', credentialsId:'NEXUS_DEFAULT_CRED', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD']]) {
+                        sh 'docker login --username $USERNAME --password $PASSWORD docker-push.prospecta.com'
                         sh 'docker build --tag docker-push.prospecta.com/prospecta/$REPOSITORY_NAME:$DESTINATION_BRANCH .'
                         sh 'docker push docker-push.prospecta.com/prospecta/$REPOSITORY_NAME:$DESTINATION_BRANCH'
                     }
@@ -63,14 +67,14 @@ pipeline {
             bitbucketStatusNotify(
                 buildState: 'SUCCESSFUL',
                 repoSlug: "$REPOSITORY_NAME",
-                commitId: "$DESTINATION_COMMIT_HASH"   
+                commitId: "$DESTINATION_COMMIT_HASH"
             )
         }
         failure {
             bitbucketStatusNotify(
                 buildState: 'FAILED',
                 repoSlug: "$REPOSITORY_NAME",
-                commitId: "$DESTINATION_COMMIT_HASH"   
+                commitId: "$DESTINATION_COMMIT_HASH"
             )
         }
     }
