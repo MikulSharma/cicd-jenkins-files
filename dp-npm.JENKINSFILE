@@ -36,7 +36,7 @@ pipeline {
                     ])
                     sh 'npm ci'
                     sh 'npm run lint'
-                    sh 'npm run build'
+                    sh 'npm run build-prod'
                     publishCoverage adapters: [
                         jacocoAdapter(
                             path: 'target/site/jacoco/jacoco.xml',
