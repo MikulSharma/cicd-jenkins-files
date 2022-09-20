@@ -1,0 +1,77 @@
+pipeline {
+    agent any
+    tools {
+      nodejs 'NodeJs LTS'
+    }
+    triggers {
+        GenericTrigger(
+            genericVariables: [
+                [defaultValue: '', key: 'DESTINATION_BRANCH', regexpFilter: '', value: '$.pullrequest.destination.branch.name'],
+                [defaultValue: '', key: 'DESTINATION_COMMIT_HASH', regexpFilter: '', value: '$.pullrequest.destination.commit.hash'],
+                [defaultValue: '', key: 'REPOSITORY_FULL_NAME', regexpFilter: '', value: '$.pullrequest.destination.repository.full_name'],
+                [defaultValue: '', key: 'REPOSITORY_NAME', regexpFilter: '', value: '$.repository.name']
+            ],
+            tokenCredentialId: 'PR_NPM_M',
+            regexpFilterText: '',
+            regexpFilterExpression: '' //'refs/heads/' + 'master'
+        )
+    }
+    stages {
+        stage('Notify Bitbucket') {
+            steps {
+                sh "echo repository $REPOSITORY_FULL_NAME"
+                sh "echo branch $DESTINATION_BRANCH"
+                sh "echo branch $DESTINATION_COMMIT_HASH"
+                bitbucketStatusNotify(buildState: 'INPROGRESS', repoSlug: "$REPOSITORY_NAME", commitId: "$DESTINATION_COMMIT_HASH")
+            }
+        }
+        stage('Build') {
+            steps {
+                dir("$REPOSITORY_NAME") { 
+                    withSonarQubeEnv(
+                        installationName: 'SonarCloud', 
+                        credentialsId: 'SONARCLOUDTOKEN') {
+                        checkout([
+                            $class: 'GitSCM', 
+                            branches: [[name: '$DESTINATION_BRANCH' ]], 
+                            extensions: [], 
+                            userRemoteConfigs: [[credentialsId: 'Bitbucket', url: 'git@bitbucket.org:'+ '$REPOSITORY_FULL_NAME' +'.git']]
+                        ])
+                        sh 'npm ci'
+                        sh 'npm run lint'
+                        sh 'npm run build'
+                        publishCoverage adapters: [
+                            jacocoAdapter(
+                                path: 'target/site/jacoco/jacoco.xml', 
+                                thresholds: [
+                                    [failUnhealthy: true, thresholdTarget: 'Conditional', unstableThreshold: 80.0], 
+                                    [failUnhealthy: true, thresholdTarget: 'Aggregated Report', unstableThreshold: 90.0], 
+                                    [failUnhealthy: true, thresholdTarget: 'Line', unstableThreshold: 90.0]
+                                ]
+                            )
+                        ], failUnhealthy: true, failUnstable: false, sourceFileResolver: sourceFiles('NEVER_STORE')
+                        sh 'docker login --username ${NX_USERNAME} --password ${NX_PASSWORD} docker-push.prospecta.com'
+                        sh 'docker build --tag docker-push.prospecta.com/prospecta/$REPOSITORY_NAME:$DESTINATION_BRANCH .'
+                        sh 'docker push docker-push.prospecta.com/prospecta/$REPOSITORY_NAME:$DESTINATION_BRANCH'
+                    }
+                }
+            }
+        }
+    }
+    post {
+        success {
+            bitbucketStatusNotify(
+                buildState: 'SUCCESSFUL',
+                repoSlug: "$REPOSITORY_NAME",
+                commitId: "$DESTINATION_COMMIT_HASH"   
+            )
+        }
+        failure {
+            bitbucketStatusNotify(
+                buildState: 'FAILED',
+                repoSlug: "$REPOSITORY_NAME",
+                commitId: "$DESTINATION_COMMIT_HASH"   
+            )
+        }
+    }
+}
