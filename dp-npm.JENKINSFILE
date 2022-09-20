@@ -1,7 +1,7 @@
 pipeline {
     agent any
     tools {
-        nodejs 'NodeJs LTS'
+        nodejs 'nodejs-16.17.0'
     }
     triggers {
         GenericTrigger(
@@ -34,7 +34,7 @@ pipeline {
                         extensions: [],
                         userRemoteConfigs: [[credentialsId: 'Bitbucket', url: 'git@bitbucket.org:' + '$REPOSITORY_FULL_NAME' + '.git']]
                     ])
-                    sh 'npm ci'
+                    sh 'npm install'
                     sh 'npm run lint'
                     sh 'npm run build-prod'
                     publishCoverage adapters: [
