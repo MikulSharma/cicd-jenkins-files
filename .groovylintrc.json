@@ -4,6 +4,15 @@
         "CompileStatic": {
             "enabled": false
         },
+        "ConsecutiveStringConcatenation": {
+            "enabled": false
+        },
+        "DuplicateNumberLiteral": {
+            "enabled": false
+        },
+        "DuplicateStringLiteral": {
+            "enabled": false
+        },
         "LineLength": {
             "enabled": false
         },

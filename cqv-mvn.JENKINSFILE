@@ -1,50 +1,47 @@
 pipeline {
     agent any
     tools {
-      maven 'maven-3.8.6'
+        maven 'maven-3.8.6'
     }
-    //https://jenkins.prospecta.com.au/directive-generator/
     triggers {
-    GenericTrigger(
-     genericVariables: [
-     [defaultValue: '', key: 'SOURCE_BRANCH', regexpFilter: '', value: '$.pullrequest.source.branch.name'],
-     [defaultValue: '', key: 'SOURCE_COMMIT_HASH', regexpFilter: '', value: '$.pullrequest.source.commit.hash'],
-     [defaultValue: '', key: 'DESTINATION_BRANCH', regexpFilter: '', value: '$.pullrequest.destination.branch.name'], 
-     [defaultValue: '', key: 'REPOSITORY_FULL_NAME', regexpFilter: '', value: '$.pullrequest.source.repository.full_name'],
-     [defaultValue: '', key: 'REPOSITORY_NAME', regexpFilter: '', value: '$.repository.name']
-     ],
-    //  token: '$GenericTriggerToken',
-     tokenCredentialId: 'PR_MVN_CU',
-     regexpFilterText: '',
-     regexpFilterExpression: '' //'refs/heads/' + 'master'
-    )
-  }
+        GenericTrigger(
+            genericVariables: [
+                [defaultValue: '', key: 'SOURCE_BRANCH', regexpFilter: '', value: '$.pullrequest.source.branch.name'],
+                [defaultValue: '', key: 'SOURCE_COMMIT_HASH', regexpFilter: '', value: '$.pullrequest.source.commit.hash'],
+                [defaultValue: '', key: 'REPOSITORY_FULL_NAME', regexpFilter: '', value: '$.pullrequest.source.repository.full_name'],
+                [defaultValue: '', key: 'REPOSITORY_NAME', regexpFilter: '', value: '$.repository.name']
+            ],
+            tokenCredentialId: 'PR_MVN_CU',
+            regexpFilterText: '',
+            regexpFilterExpression: '' //'refs/heads/' + 'master'
+        )
+    }
     stages {
-        stage('Check Out') {
-                steps {
+        stage('Notify Bitbucket') {
+            steps {
                 sh "echo repository $REPOSITORY_FULL_NAME"
                 sh "echo branch $SOURCE_BRANCH"
-                sh "echo branch $DESTINATION_BRANCH"
                 sh "echo branch $SOURCE_COMMIT_HASH"
-                bitbucketStatusNotify(
-                    buildState: 'INPROGRESS',
-                    repoSlug: "$REPOSITORY_NAME",
-                    commitId: "$SOURCE_COMMIT_HASH"      
-                  )
-                dir("$REPOSITORY_NAME") { withSonarQubeEnv(installationName: 'SonarCloud', credentialsId: 'SONARCLOUDTOKEN') {
+                bitbucketStatusNotify(buildState: 'INPROGRESS', repoSlug: "$REPOSITORY_NAME", commitId: "$SOURCE_COMMIT_HASH")
+            }
+        }
+        stage('Build') {
+            steps {
+                dir("$REPOSITORY_NAME") {
                     checkout(
                         [
-                            $class: 'GitSCM', 
-                            branches: [[name: '$SOURCE_BRANCH' ]], 
-                            extensions: [], 
-                            userRemoteConfigs: [[credentialsId: 'Bitbucket', url: 'git@bitbucket.org:'+ '$REPOSITORY_FULL_NAME' +'.git']]
+                            $class: 'GitSCM',
+                            branches: [[name: '$SOURCE_BRANCH' ]],
+                            extensions: [],
+                            userRemoteConfigs: [[credentialsId: 'Bitbucket', url: 'git@bitbucket.org:' + '$REPOSITORY_FULL_NAME' + '.git']]
                         ]
                     )
-                  configFileProvider([configFile(fileId: 'nexus-maven-settings.xml', targetLocation: 'nexus-maven-settings.xml', variable: 'nexus-maven-settings.xml')]) 
-                  {
-                    sh 'mvn -gs nexus-maven-settings.xml clean verify test $SONAR_MAVEN_GOAL -Dsonar.branch.name=$GIT_BRANCH_LOCAL'
-                  }
-                  publishCoverage adapters: [
+                    withSonarQubeEnv(installationName: 'SonarCloud', credentialsId: 'SONARCLOUDTOKEN') {
+                        configFileProvider([configFile(fileId: 'nexus-maven-settings.xml', targetLocation: 'nexus-maven-settings.xml', variable: 'nexus-maven-settings.xml')]) {
+                            sh 'mvn -gs nexus-maven-settings.xml clean verify test $SONAR_MAVEN_GOAL -Dsonar.branch.name=$GIT_BRANCH_LOCAL'
+                        }
+                    }
+                    publishCoverage adapters: [
                         jacocoAdapter(
                             path: 'target/site/jacoco/jacoco.xml',
                             thresholds: [
@@ -54,24 +51,25 @@ pipeline {
                             ]
                         )
                     ], failUnhealthy: false, failUnstable: true, sourceFileResolver: sourceFiles('NEVER_STORE')
-                    }}}
-          }
+                }
+            }
+        }
     }
     post {
-      success {
-          bitbucketStatusNotify(
-            buildState: 'SUCCESSFUL',
-            repoSlug: "$REPOSITORY_NAME",
-            commitId: "$SOURCE_COMMIT_HASH"   
-          )
-      }
-      failure {
-          bitbucketStatusNotify(
-            buildState: 'FAILED',
-            repoSlug: "$REPOSITORY_NAME",
-            commitId: "$SOURCE_COMMIT_HASH"   
-          )
-      }
+        success {
+            bitbucketStatusNotify(
+                buildState: 'SUCCESSFUL',
+                repoSlug: "$REPOSITORY_NAME",
+                commitId: "$SOURCE_COMMIT_HASH"
+            )
+        }
+        failure {
+            bitbucketStatusNotify(
+                buildState: 'FAILED',
+                repoSlug: "$REPOSITORY_NAME",
+                commitId: "$SOURCE_COMMIT_HASH"
+            )
+        }
     }
 }
 
