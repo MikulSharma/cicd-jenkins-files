@@ -36,7 +36,7 @@ pipeline {
                     ])
                     withSonarQubeEnv(installationName: 'SonarCloud', credentialsId: 'SONARCLOUDTOKEN') {
                         configFileProvider([configFile(fileId: 'nexus-maven-settings.xml', targetLocation: 'nexus-maven-settings.xml', variable: 'nexus-maven-settings.xml')]) {
-                            sh 'mvn -gs nexus-maven-settings.xml clean verify test $SONAR_MAVEN_GOAL -Dsonar.branch.name=$GIT_BRANCH_LOCAL'
+                            sh 'mvn -f pom.xml -gs nexus-maven-settings.xml clean verify test $SONAR_MAVEN_GOAL -Dsonar.branch.name=$DESTINATION_BRANCH'
                         }
                     }
                     publishCoverage adapters: [
